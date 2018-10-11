@@ -1,0 +1,9 @@
+# ignore all pyc files.
+*.pyc
+
+
+# misc
+run.bat
+pix/
+.vscode/
+logs_bird/
