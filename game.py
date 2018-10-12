@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 from __future__ import print_function
 from os import makedirs
-# import tensorflow as tf
+# import threading
+from math import ceil
 import cv2
+import time
 import sys
 import pygame
 from smiledetector import SmileDetector
@@ -24,10 +26,12 @@ if mouth_cascade.empty():
 cap = cv2.VideoCapture(0)
 ds_factor = 0.5
 
-counter = 0
 APP_CONFIG = {'save':False}
 APP_CONFIG['RECT_WIDTH'] = 150
 APP_CONFIG['RECT_HEIGHT'] = 150
+APP_CONFIG['save_rate'] = 1 # every second
+
+frame = None #cv2.resize(cap.read()[1], None, fx=ds_factor, fy=ds_factor, interpolation=cv2.INTER_AREA)
 
 def isMouth(faceFrame):
     mouth = False
@@ -73,7 +77,10 @@ def playGame():
     # open up a game state to communicate with emulator
     game_state = game.GameState()
 
+    # threading.Timer(0.1, processFrames).start()
+    # threading.Timer(1.5, saveFrame).start()
     while True:
+        t_start = time.time()
         keys = pygame.key.get_pressed()
         if (keys[K_ESCAPE]):
             cap.release()
@@ -85,14 +92,19 @@ def playGame():
         if (keys[K_n]):
             APP_CONFIG['save'] = True
             print('on')
-        
-        currFrame = getCurrCameraFrame()
-        drawFitRectangle(currFrame)
-        faceFrame = excludeFace(currFrame)
+        frame = processFrames()
+        drawFitRectangle(frame)
+        faceFrame = excludeFace(frame)
         shouldJump = isMouth2(faceFrame)
-        game_state.frame_step(getAction(shouldJump))
-        drawFrame(currFrame)
-        saveFrame(currFrame)
+        saveFrame(faceFrame)
+        t_end = time.time()
+        t_delta = ceil(t_end - t_start)
+        print(t_delta)
+        while(t_delta >= 0):
+            game_state.frame_step(getAction(shouldJump))
+            t_delta -= 1
+        drawFrame(frame)
+
 
 
 def getAction(jump):
@@ -125,7 +137,6 @@ def drawScreenImage():
     frame = frame[y1:y2, x1:x2]
     return frame
 
-
 def calcFitRectangle():
     x_start, y_start = 75, 50
     x1, x2, y1, y2 = x_start, x_start + APP_CONFIG['RECT_WIDTH'], y_start, y_start + APP_CONFIG['RECT_HEIGHT']
@@ -139,20 +150,23 @@ def excludeFace(frame):
     x1, y1, x2, y2 = calcFitRectangle()
     return frame[y1:y2, x1:x2]
 
-def getCurrCameraFrame():
+def processFrames():
     return cv2.resize(cap.read()[1], None, fx=ds_factor, fy=ds_factor, interpolation=cv2.INTER_AREA)
 
 def drawFrame(frame):
     cv2.imshow('Mouth Detector', frame)
 
+lastTimeSaveImage = 0
+countImages = 0
 def saveFrame(frame):
-    # inc counter
-    global counter
-    counter = counter + 1
-    
-    # save if next image and config is on
-    if (counter % 150 and APP_CONFIG['save']):
-        newImagePath = "{}\\_{}.jpg".format(APP_CONFIG['save_path'],counter)
+    if (not APP_CONFIG['save']): return
+    global lastTimeSaveImage
+    timeNow = int(time.time())
+    if (timeNow - lastTimeSaveImage > APP_CONFIG['save_rate']):
+        lastTimeSaveImage = timeNow
+        global countImages
+        countImages += 1
+        newImagePath = "{}\\_{}.jpg".format(APP_CONFIG['save_path'],countImages)
         cv2.imwrite(newImagePath, frame)
 def main():
     now = datetime.now()
@@ -163,7 +177,7 @@ def main():
     month = now.month
     s = now.second
     date = "{}-{}-{}_{}-{}-{}".format(y,month,d,h,minute,s)
-    currentImagePath = "D:\\imageProcessing game\\(edited) DeepLearningFlappyBird\\pix\\{}".format(date)
+    currentImagePath = ".\\pix\\{}".format(date)
     makedirs(currentImagePath)
     randImagesPath = currentImagePath
     APP_CONFIG['save_path'] = randImagesPath
