@@ -1,22 +1,26 @@
-#!/usr/bin/env python
+'''
+    This is the flappy bird game played with smile or any cascade that be passed, this game also save random frames and the whole video if save is opened
+    To start saving -> press 'n' when flappy bird is focussed
+    To pause saving -> press 'f' when flappy bird is focussed
+    The default is the game does not save
+'''
 from __future__ import print_function
 from os import makedirs
 # import threading
-from math import ceil
+# from math import ceil
+import numpy
 import cv2
 import time
 import sys
 import pygame
-from smiledetector import SmileDetector
+# from smiledetector import SmileDetector
 from pygame.locals import K_UP, K_ESCAPE, K_f, K_n
+import numpy as np
+from datetime import datetime
 sys.path.append("game/")
 import wrapped_flappy_bird as game
-import random
-import numpy as np
-from collections import deque
-from datetime import datetime
 
-smileDetector = SmileDetector()
+# smileDetector = SmileDetector()
 
 ACTIONS = 2 # number of valid actions
 
@@ -24,12 +28,17 @@ mouth_cascade = cv2.CascadeClassifier('HaarCasscades/smile.xml')
 if mouth_cascade.empty():
   raise IOError('Unable to load the mouth cascade classifier xml file')
 cap = cv2.VideoCapture(0)
+
+
+videoSaver = None
 ds_factor = 0.5
 
 APP_CONFIG = {'save':False}
 APP_CONFIG['RECT_WIDTH'] = 150
 APP_CONFIG['RECT_HEIGHT'] = 150
-APP_CONFIG['save_rate'] = 1 # every second
+APP_CONFIG['FRAME_WIDTH'] = ds_factor * cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+APP_CONFIG['FRAME_HEIGHT'] = ds_factor * cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+APP_CONFIG['save_rate'] = 500 # every 500 ms
 
 frame = None #cv2.resize(cap.read()[1], None, fx=ds_factor, fy=ds_factor, interpolation=cv2.INTER_AREA)
 
@@ -84,6 +93,7 @@ def playGame():
         keys = pygame.key.get_pressed()
         if (keys[K_ESCAPE]):
             cap.release()
+            videoSaver.release()
             cv2.destroyAllWindows()
             return
         if (keys[K_f]):
@@ -93,16 +103,17 @@ def playGame():
             APP_CONFIG['save'] = True
             print('on')
         frame = processFrames()
-        drawFitRectangle(frame)
+        #drawFitRectangle(frame)
         faceFrame = excludeFace(frame)
-        shouldJump = isMouth2(faceFrame)
-        saveFrame(faceFrame)
+        shouldJump = isMouth(faceFrame)
+        saveFrame(frame)
         t_end = time.time()
-        t_delta = ceil(t_end - t_start)
+        t_delta = int((t_end - t_start) * 1000)
         print(t_delta)
         while(t_delta >= 0):
             game_state.frame_step(getAction(shouldJump))
-            t_delta -= 1
+            t_delta -= 8
+        #game_state.frame_step(getAction(shouldJump))
         drawFrame(frame)
 
 
@@ -151,6 +162,7 @@ def excludeFace(frame):
     return frame[y1:y2, x1:x2]
 
 def processFrames():
+    # return cap.read()[1]
     return cv2.resize(cap.read()[1], None, fx=ds_factor, fy=ds_factor, interpolation=cv2.INTER_AREA)
 
 def drawFrame(frame):
@@ -160,8 +172,9 @@ lastTimeSaveImage = 0
 countImages = 0
 def saveFrame(frame):
     if (not APP_CONFIG['save']): return
+    videoSaver.write(frame)
     global lastTimeSaveImage
-    timeNow = int(time.time())
+    timeNow = time.time() * 1000
     if (timeNow - lastTimeSaveImage > APP_CONFIG['save_rate']):
         lastTimeSaveImage = timeNow
         global countImages
@@ -170,17 +183,20 @@ def saveFrame(frame):
         cv2.imwrite(newImagePath, frame)
 def main():
     now = datetime.now()
-    h = now.hour
-    minute = now.minute
-    y = now.year
-    d = now.day
-    month = now.month
-    s = now.second
+    h, minute,y,d,month,s = now.hour, now.minute, now.year, now.day, now.month, now.second
     date = "{}-{}-{}_{}-{}-{}".format(y,month,d,h,minute,s)
+
     currentImagePath = ".\\pix\\{}".format(date)
     makedirs(currentImagePath)
     randImagesPath = currentImagePath
     APP_CONFIG['save_path'] = randImagesPath
+
+    # width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)   # float
+    # height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT) # float
+    res = int(APP_CONFIG['FRAME_WIDTH']), int(APP_CONFIG['FRAME_HEIGHT'])
+    global videoSaver
+    videoSaver = cv2.VideoWriter("{}\\vid.avi".format(APP_CONFIG['save_path']),cv2.VideoWriter_fourcc(*'XVID'), 10.0, res)
+
     playGame()
 
 if __name__ == "__main__":

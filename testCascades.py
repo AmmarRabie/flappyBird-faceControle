@@ -1,7 +1,11 @@
+'''
+    Run this script by replacing fist.xml with cascade file name you want to test..
+    This open a real time testing with finding where the detected shape was found (green rectangle)
+'''
 import cv2
 import numpy as np
 
-mouth_cascade = cv2.CascadeClassifier('mouth.xml')
+mouth_cascade = cv2.CascadeClassifier('HaarCasscades//fist.xml')
 
 if mouth_cascade.empty():
   raise IOError('Unable to load the mouth cascade classifier xml file')

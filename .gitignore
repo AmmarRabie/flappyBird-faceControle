@@ -7,3 +7,4 @@ run.bat
 pix/
 .vscode/
 logs_bird/
+venv/
